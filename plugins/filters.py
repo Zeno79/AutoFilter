@@ -18,6 +18,7 @@ async def addfilter(client, message):
     userid = message.from_user.id if message.from_user else None
     if not userid:
         return await message.reply(f"You are anonymous admin. Use /connect {message.chat.id} in PM")
+    
     chat_type = message.chat.type
     args = message.text.html.split(None, 1)
 
@@ -50,13 +51,17 @@ async def addfilter(client, message):
     ):
         return
 
-
     if len(args) < 2:
         await message.reply_text("Command Incomplete :(", quote=True)
         return
 
     extracted = split_quotes(args[1])
     text = extracted[0].lower()
+
+    # Ensure the filter includes both episode and resolution details
+    if not any(res in text for res in ['480p', '720p', '1080p']):
+        await message.reply_text("Please include the resolution (e.g., 480p, 720p, or 1080p) in the filter name.", quote=True)
+        return
 
     if not message.reply_to_message and len(extracted) < 2:
         await message.reply_text("Add some content to save your filter!", quote=True)
@@ -110,12 +115,13 @@ async def addfilter(client, message):
     await add_filter(grp_id, text, reply_text, btn, fileid, alert)
 
     await message.reply_text(
-        f"Filter for  `{text}`  added in  **{title}**",
+        f"Filter for `{text}` added in **{title}**",
         quote=True,
         parse_mode=enums.ParseMode.MARKDOWN
     )
 
 
+# View all filters in sequential order of episodes and resolutions
 @Client.on_message(filters.command(['viewfilters', 'filters']) & filters.incoming)
 async def get_all(client, message):
     
@@ -123,6 +129,7 @@ async def get_all(client, message):
     userid = message.from_user.id if message.from_user else None
     if not userid:
         return await message.reply(f"You are anonymous admin. Use /connect {message.chat.id} in PM")
+    
     if chat_type == enums.ChatType.PRIVATE:
         userid = message.from_user.id
         grpid = await active_connection(str(userid))
@@ -153,14 +160,25 @@ async def get_all(client, message):
     ):
         return
 
+    # Get and sort filters by episode and resolution
     texts = await get_filters(grp_id)
     count = await count_filters(grp_id)
+    
     if count:
         filterlist = f"Total number of filters in **{title}** : {count}\n\n"
 
-        for text in texts:
-            keywords = " ×  `{}`\n".format(text)
+        # Extract episode and resolution from the filter text (assuming format 'Episode X Yp')
+        def parse_episode_resolution(text):
+            parts = text.split()
+            episode_num = int(parts[1])  # Assuming 'Episode X' format
+            resolution = parts[2]        # Assuming 'X Yp' where Yp is the resolution
+            return (episode_num, resolution)
 
+        # Sort by episode number first, then by resolution (480p, 720p, 1080p)
+        sorted_texts = sorted(texts, key=lambda x: (parse_episode_resolution(x)[0], parse_episode_resolution(x)[1]))
+
+        for text in sorted_texts:
+            keywords = " ×  `{}`\n".format(text)
             filterlist += keywords
 
         if len(filterlist) > 4096:
@@ -179,12 +197,15 @@ async def get_all(client, message):
         quote=True,
         parse_mode=enums.ParseMode.MARKDOWN
     )
-        
+
+
+# Delete specific filters
 @Client.on_message(filters.command('del') & filters.incoming)
 async def deletefilter(client, message):
     userid = message.from_user.id if message.from_user else None
     if not userid:
         return await message.reply(f"You are anonymous admin. Use /connect {message.chat.id} in PM")
+    
     chat_type = message.chat.type
 
     if chat_type == enums.ChatType.PRIVATE:
@@ -218,54 +239,5 @@ async def deletefilter(client, message):
     try:
         cmd, text = message.text.split(" ", 1)
     except:
-        await message.reply_text(
-            "<i>Mention the filtername which you wanna delete!</i>\n\n"
-            "<code>/del filtername</code>\n\n"
-            "Use /viewfilters to view all available filters",
-            quote=True
-        )
-        return
 
-    query = text.lower()
-
-    await delete_filter(message, query, grp_id)
-        
-
-@Client.on_message(filters.command('delall') & filters.incoming)
-async def delallconfirm(client, message):
-    userid = message.from_user.id if message.from_user else None
-    if not userid:
-        return await message.reply(f"You are anonymous admin. Use /connect {message.chat.id} in PM")
-    chat_type = message.chat.type
-
-    if chat_type == enums.ChatType.PRIVATE:
-        grpid  = await active_connection(str(userid))
-        if grpid is not None:
-            grp_id = grpid
-            try:
-                chat = await client.get_chat(grpid)
-                title = chat.title
-            except:
-                await message.reply_text("Make sure I'm present in your group!!", quote=True)
-                return
-        else:
-            await message.reply_text("I'm not connected to any groups!", quote=True)
-            return
-
-    elif chat_type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-        grp_id = message.chat.id
-        title = message.chat.title
-
-    else:
-        return
-
-    st = await client.get_chat_member(grp_id, userid)
-    if (st.status == enums.ChatMemberStatus.OWNER) or (str(userid) in ADMINS):
-        await message.reply_text(
-            f"This will delete all filters from '{title}'.\nDo you want to continue??",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(text="YES",callback_data="delallconfirm")],
-                [InlineKeyboardButton(text="CANCEL",callback_data="delallcancel")]
-            ]),
-            quote=True
-        )
+       
