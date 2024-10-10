@@ -1,18 +1,17 @@
 import io
 from pyrogram import filters, Client, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from database.filters_mdb import(
-   add_filter,
-   get_filters,
-   delete_filter,
-   count_filters
+from database.filters_mdb import (
+    add_filter,
+    get_filters,
+    delete_filter,
+    count_filters
 )
-
 from database.connections_mdb import active_connection
 from utils import get_file_id, parser, split_quotes
 from info import ADMINS
 
-
+# Add filter command handler
 @Client.on_message(filters.command(['filter', 'add']) & filters.incoming)
 async def addfilter(client, message):
     userid = message.from_user.id if message.from_user else None
@@ -39,7 +38,6 @@ async def addfilter(client, message):
     elif chat_type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
         grp_id = message.chat.id
         title = message.chat.title
-
     else:
         return
 
@@ -58,7 +56,6 @@ async def addfilter(client, message):
     extracted = split_quotes(args[1])
     text = extracted[0].lower()
 
-    # Ensure the filter includes both episode and resolution details
     if not any(res in text for res in ['480p', '720p', '1080p']):
         await message.reply_text("Please include the resolution (e.g., 480p, 720p, or 1080p) in the filter name.", quote=True)
         return
@@ -73,7 +70,6 @@ async def addfilter(client, message):
         if not reply_text:
             await message.reply_text("You cannot have buttons alone, give some text to go with it!", quote=True)
             return
-
     elif message.reply_to_message and message.reply_to_message.reply_markup:
         try:
             rm = message.reply_to_message.reply_markup
@@ -121,10 +117,9 @@ async def addfilter(client, message):
     )
 
 
-# View all filters in sequential order of episodes and resolutions
+# View all filters
 @Client.on_message(filters.command(['viewfilters', 'filters']) & filters.incoming)
 async def get_all(client, message):
-    
     chat_type = message.chat.type
     userid = message.from_user.id if message.from_user else None
     if not userid:
@@ -148,7 +143,6 @@ async def get_all(client, message):
     elif chat_type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
         grp_id = message.chat.id
         title = message.chat.title
-
     else:
         return
 
@@ -160,21 +154,18 @@ async def get_all(client, message):
     ):
         return
 
-    # Get and sort filters by episode and resolution
     texts = await get_filters(grp_id)
     count = await count_filters(grp_id)
     
     if count:
         filterlist = f"Total number of filters in **{title}** : {count}\n\n"
 
-        # Extract episode and resolution from the filter text (assuming format 'Episode X Yp')
         def parse_episode_resolution(text):
             parts = text.split()
-            episode_num = int(parts[1])  # Assuming 'Episode X' format
-            resolution = parts[2]        # Assuming 'X Yp' where Yp is the resolution
+            episode_num = int(parts[1])
+            resolution = parts[2]
             return (episode_num, resolution)
 
-        # Sort by episode number first, then by resolution (480p, 720p, 1080p)
         sorted_texts = sorted(texts, key=lambda x: (parse_episode_resolution(x)[0], parse_episode_resolution(x)[1]))
 
         for text in sorted_texts:
@@ -209,7 +200,7 @@ async def deletefilter(client, message):
     chat_type = message.chat.type
 
     if chat_type == enums.ChatType.PRIVATE:
-        grpid  = await active_connection(str(userid))
+        grpid = await active_connection(str(userid))
         if grpid is not None:
             grp_id = grpid
             try:
@@ -220,24 +211,8 @@ async def deletefilter(client, message):
                 return
         else:
             await message.reply_text("I'm not connected to any groups!", quote=True)
+            return
 
     elif chat_type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-        grp_id = message.chat.id
-        title = message.chat.title
-
-    else:
-        return
-
-    st = await client.get_chat_member(grp_id, userid)
-    if (
-        st.status != enums.ChatMemberStatus.ADMINISTRATOR
-        and st.status != enums.ChatMemberStatus.OWNER
-        and str(userid) not in ADMINS
-    ):
-        return
-
-    try:
-        cmd, text = message.text.split(" ", 1)
-    except:
-
-       
+        grp_id = message
+               
